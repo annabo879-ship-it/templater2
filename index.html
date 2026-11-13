@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Студия 57 — Конфигуратор Афиш</title>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,700&family=Rubik+Mono+One&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #0d0d0e; --card: #18181c; --accent: #f3b31a; --text: #ffffff; }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier Prime', monospace; }
+  body { background: var(--bg); color: var(--text); display: flex; justify-content: center; padding: 20px; }
+  .app-container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 14px; }
+  .header { display: flex; justify-content: space-between; align-items: center; }
+  .header h3 { font-family: 'Rubik Mono One', sans-serif; font-size: 15px; letter-spacing: 0.5px; }
+  .badge { background: var(--accent); color: #000; padding: 4px 8px; border-radius: 4px; font-weight: 700; font-size: 11px; }
+  .format-tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--card); padding: 4px; border-radius: 6px; }
+  .tab-btn { background: transparent; border: none; color: #888; padding: 10px; font-weight: 700; cursor: pointer; border-radius: 4px; }
+  .tab-btn.active { background: #fff; color: #000; }
+  .preview-wrapper { background: var(--card); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; align-items: center; }
+  canvas { max-width: 100%; max-height: 360px; border-radius: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+  .controls { background: var(--card); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .field-group { display: flex; flex-direction: column; gap: 5px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; }
+  input, select { background: #0d0d0e; border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 10px; border-radius: 4px; font-size: 14px; width: 100%; }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .download-btn { background: var(--accent); color: #000; border: none; padding: 14px; border-radius: 6px; font-family: 'Rubik Mono One', sans-serif; font-size: 13px; cursor: pointer; margin-top: 6px; }
+  .download-btn:hover { background: #fff; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <div class="header">
+    <h3>СТУДИЯ 57 // ГЕНЕРАТОР</h3>
+    <span class="badge">КРАФТ-ПАНК</span>
+  </div>
+
+  <div class="format-tabs">
+    <button class="tab-btn active" onclick="setFormat('post', this)">ПОСТ (1:1)</button>
+    <button class="tab-btn" onclick="setFormat('story', this)">СТОРИЗ (9:16)</button>
+  </div>
+
+  <div class="preview-wrapper">
+    <canvas id="posterCanvas" width="1080" height="1080"></canvas>
+  </div>
+
+  <div class="controls">
+    <div class="field-row">
+      <div class="field-group">
+        <label>Мероприятие (Леттеринг)</label>
+        <select id="eventType" onchange="applyPreset()">
+          <option value="mk">Мастер-класс (PNG)</option>
+          <option value="chor">Занятие хора (PNG)</option>
+          <option value="karaoke">Караоке-туса (PNG)</option>
+          <option value="swap">Музыкальный своп (PNG)</option>
+          <option value="custom">Свой заголовок (Текст)</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Тема фона</label>
+        <select id="themeSelect" onchange="drawCanvas()">
+          <option value="blue">Глубокий синий</option>
+          <option value="dark">Глубокий черный</option>
+          <option value="kraft">Чистый крафт</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-group" id="textTitleGroup" style="display: none;">
+      <label>Свой заголовок (если нет PNG)</label>
+      <input type="text" id="titleInput" value="ИНДИ ХОР" oninput="drawCanvas()">
+    </div>
+
+    <div class="field-group">
+      <label>Подзаголовок / Описание</label>
+      <input type="text" id="subInput" value="сценическое движение свобода на сцене" oninput="drawCanvas()">
+    </div>
+
+    <div class="field-row">
+      <div class="field-group">
+        <label>Дата</label>
+        <input type="text" id="dateInput" value="25 НОЯБРЯ" oninput="drawCanvas()">
+      </div>
+      <div class="field-group">
+        <label>Время</label>
+        <input type="text" id="timeInput" value="19:00" oninput="drawCanvas()">
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label>Мелкий шрифт (Детали / Места)</label>
+      <input type="text" id="detailsInput" value="осталось 4 места // запись в директ" oninput="drawCanvas()">
+    </div>
+
+    <button class="download-btn" onclick="downloadImage()">СОХРАНИТЬ АФИШУ (JPG)</button>
+  </div>
+</div>
+
+<script>
+let currentFormat = 'post';
+const canvas = document.getElementById('posterCanvas');
+const ctx = canvas.getContext('2d');
+
+const images = {
+  mk:      { src: 'img/masterclass.png', loaded: false, obj: new Image() },
+  chor:    { src: 'img/chor.png',        loaded: false, obj: new Image() },
+  karaoke: { src: 'img/karaoke.png',     loaded: false, obj: new Image() },
+  swap:    { src: 'img/swap.png',        loaded: false, obj: new Image() }
+};
+
+const presets = {
+  mk:      { sub: 'сценическое движение свобода на сцене', details: 'осталось 4 места // запись в директ' },
+  chor:    { sub: 'поём инди-хором в три голоса', details: 'четверг // абонемент или разово 1200 ₽' },
+  karaoke: { sub: 'поём любимые хиты на полную громкость', details: 'вход свободный // с собой хорошее настроение' },
+  swap:    { sub: 'гитарный своп, винил и теплый джем', details: 'приноси стафф // меняйся и общайся' },
+  custom:  { sub: 'репетиция в три голоса под акустику', details: 'осталось 3 места // 1500 ₽' }
+};
+
+for (let key in images) {
+  images[key].obj.src = images[key].src;
+  images[key].obj.onload = () => { images[key].loaded = true; drawCanvas(); };
+  images[key].obj.onerror = () => { drawCanvas(); };
+}
+
+function applyPreset() {
+  const type = document.getElementById('eventType').value;
+  document.getElementById('textTitleGroup').style.display = (type === 'custom') ? 'flex' : 'none';
+  if (presets[type]) {
+    document.getElementById('subInput').value = presets[type].sub;
+    document.getElementById('detailsInput').value = presets[type].details;
+  }
+  drawCanvas();
+}
+
+function setFormat(fmt, btn) {
+  currentFormat = fmt;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  canvas.width = 1080;
+  canvas.height = (fmt === 'post') ? 1080 : 1920;
+  drawCanvas();
+}
+
+function wrapText(text, x, y, maxWidth, lineHeight, font) {
+  ctx.font = font;
+  let words = text.split(' ');
+  let line = '';
+  let currentY = y;
+
+  for (let n = 0; n < words.length; n++) {
+    let testLine = line + words[n] + ' ';
+    let metrics = ctx.measureText(testLine);
+    let testWidth = metrics.width;
+    if (testWidth > maxWidth && n > 0) {
+      ctx.fillText(line.trim(), x, currentY);
+      line = words[n] + ' ';
+      currentY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line.trim(), x, currentY);
+  return currentY;
+}
+
+// Надежная перекраска PNG-леттеринга через виртуальный холст (работает на iOS/Safari)
+function drawTintedImage(img, x, y, width, height, color) {
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = Math.max(1, Math.round(width));
+  tempCanvas.height = Math.max(1, Math.round(height));
+  const tempCtx = tempCanvas.getContext('2d');
+
+  tempCtx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
+  tempCtx.globalCompositeOperation = 'source-in';
+  tempCtx.fillStyle = color;
+  tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+  ctx.drawImage(tempCanvas, x, y, width, height);
+}
+
+function drawCanvas() {
+  const W = canvas.width, H = canvas.height, isStory = (currentFormat === 'story');
+  const theme = document.getElementById('themeSelect').value;
+  const type = document.getElementById('eventType').value;
+  const pad = 90;
+  const maxBoxW = W - (pad * 2);
+
+  let bg = '#121215', txt = '#FFFFFF', accent = '#f3b31a', subBg = 'rgba(255,255,255,0.06)';
+  const brandYellow = '#f3b31a';
+  let bottomBarBg = (theme === 'blue') ? '#5da3dc' : brandYellow;
+
+  if (theme === 'blue') {
+    bg = '#0d1520';
+    txt = '#f0f4f8';
+    accent = '#3873a6';
+    subBg = 'rgba(56, 115, 166, 0.15)';
+  } else if (theme === 'kraft') {
+    bg = '#e5dec9';
+    txt = '#111112';
+    accent = '#111112';
+    subBg = 'rgba(0,0,0,0.06)';
+  }
+
+  // 1. Фон и свечение
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  if (theme === 'blue') {
+    const grad = ctx.createRadialGradient(W * 0.5, H * 0.45, 50, W * 0.5, H * 0.45, W * 0.75);
+    grad.addColorStop(0, 'rgba(56, 115, 166, 0.28)');
+    grad.addColorStop(1, 'rgba(13, 21, 32, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.fillStyle = subBg;
+    ctx.beginPath();
+    ctx.arc(W - 180, isStory ? 380 : 260, 340, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Внутренняя рамка
+  ctx.strokeStyle = theme === 'kraft' ? 'rgba(0,0,0,0.15)' : (theme === 'blue' ? '#2d4663' : 'rgba(255,255,255,0.12)');
+  ctx.lineWidth = 3;
+  ctx.strokeRect(45, 45, W - 90, H - 90);
+
+  // 2. Круглый штамп СТУДИЯ 57
+  const logoX = W - 170, logoY = isStory ? 190 : 160, logoR = 85;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(logoX, logoY, logoR, 0, Math.PI * 2);
+  ctx.fillStyle = (theme === 'blue') ? '#152030' : '#000000';
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(logoX, logoY, logoR - 18, 0, Math.PI, false);
+  ctx.strokeStyle = brandYellow;
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 26px "Courier Prime"';
+  ctx.fillText('СТУДИЯ', logoX, logoY - 8);
+  ctx.font = 'italic 700 46px "Courier Prime"';
+  ctx.fillStyle = brandYellow;
+  ctx.fillText('57', logoX, logoY + 38);
+  ctx.restore();
+
+  // 3. Заголовок (PNG-леттеринг или текст)
+  const titleAreaY = isStory ? 340 : 230;
+  const maxBoxH = isStory ? 420 : 280;
+
+  if (type !== 'custom' && images[type] && images[type].loaded) {
+    let img = images[type].obj;
+    let ratio = Math.min(maxBoxW / img.width, maxBoxH / img.height);
+    let drawW = img.width * ratio;
+    let drawH = img.height * ratio;
+    let drawX = pad + (maxBoxW - drawW) / 2;
+    let drawY = titleAreaY + (maxBoxH - drawH) / 2;
+
+    if (theme === 'kraft') {
+      drawTintedImage(img, drawX, drawY, drawW, drawH, '#111112');
+    } else {
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    }
+  } else {
+    ctx.fillStyle = txt;
+    let fallbackText = (type === 'custom') ? document.getElementById('titleInput').value.toUpperCase() : type.toUpperCase();
+    wrapText(fallbackText, pad, titleAreaY + 100, maxBoxW, 75, '900 68px "Rubik Mono One"');
+  }
+
+  // 4. Подзаголовок
+  const subY = isStory ? 860 : 580;
+  ctx.fillStyle = txt;
+  wrapText(document.getElementById('subInput').value, pad, subY, maxBoxW, 45, '700 34px "Courier Prime"');
+
+  // 5. Плашка даты и времени
+  const dateText = document.getElementById('dateInput').value.toUpperCase();
+  const timeText = document.getElementById('timeInput').value;
+  const boxY = isStory ? 1020 : 650;
+
+  ctx.fillStyle = subBg;
+  ctx.fillRect(pad, boxY, maxBoxW, 210);
+
+  ctx.fillStyle = (theme === 'blue') ? '#5da3dc' : accent;
+  ctx.fillRect(pad, boxY, 14, 210);
+
+  ctx.fillStyle = (theme === 'blue') ? '#5da3dc' : accent;
+  ctx.font = '700 44px "Courier Prime"';
+  ctx.fillText(dateText, pad + 45, boxY + 70);
+
+  ctx.fillStyle = txt;
+  ctx.font = '700 105px "Courier Prime"';
+  ctx.fillText(timeText, pad + 45, boxY + 175);
+
+  // 6. Зона мелкого шрифта (Детали / Места) с авторасчетом высоты плашки
+  const detailsY = isStory ? 1360 : 940;
+  const detailsText = document.getElementById('detailsInput').value.toUpperCase();
+
+  ctx.font = '700 28px "Courier Prime"';
+  let words = detailsText.split(' ');
+  let line = '';
+  let lineCount = 1;
+  for (let n = 0; n < words.length; n++) {
+    let testLine = line + words[n] + ' ';
+    if (ctx.measureText(testLine).width > (maxBoxW - 40) && n > 0) {
+      line = words[n] + ' ';
+      lineCount++;
+    } else {
+      line = testLine;
+    }
+  }
+
+  let barHeight = Math.max(54, lineCount * 36 + 24);
+  ctx.fillStyle = bottomBarBg;
+  ctx.fillRect(pad, detailsY - 32, maxBoxW, barHeight);
+
+  ctx.fillStyle = '#000000';
+  wrapText(detailsText, pad + 20, detailsY, maxBoxW - 40, 36, '700 28px "Courier Prime"');
+
+  // 7. Нижний штамп
+  ctx.font = '700 16px "Courier Prime"';
+  ctx.fillStyle = theme === 'kraft' ? 'rgba(0,0,0,0.4)' : (theme === 'blue' ? '#8fa6c2' : 'rgba(255,255,255,0.35)');
+  ctx.fillText('© 2026 // СТУДИЯ 57', pad, H - 65);
+}
+
+// Экспорт в JPEG + системная шторка «Поделиться» для мобильных
+function downloadImage() {
+  const filename = `Studio57_${currentFormat}.jpg`;
+
+  canvas.toBlob(async (blob) => {
+    if (!blob) return;
+    const file = new File([blob], filename, { type: 'image/jpeg' });
+
+    // 1. Для смартфонов (iOS / Android): нативное меню «Поделиться» -> «Сохранить изображение»
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    // 2. Запасной вариант для десктопа: прямое скачивание через Blob URL
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, 'image/jpeg', 0.92);
+}
+
+document.fonts.ready.then(() => drawCanvas());
+window.onload = drawCanvas;
+</script>
+</body>
+</html>
